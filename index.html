@@ -193,6 +193,58 @@ td small{display:block;color:var(--muted);font-family:var(--f-body)}
   .time .hm{font-size:1.4rem}
 }
 @media (prefers-reduced-motion:no-preference){.mark{transition:left .25s ease}}
+
+/* ── 컴팩트 레이아웃: 상단을 얇게, 도시 카드도 얇게 (PC·모바일 공통) ── */
+.row{padding:10px 14px;gap:2px 12px}
+.time .hm{font-size:1.4rem}
+.time .date{font-size:.8rem}
+.city .name{font-size:.98rem}
+.city .meta{font-size:.74rem}
+.side{gap:4px}
+.strip{margin-top:4px;height:8px}
+.strip .mark{top:-5px;height:18px}
+.ticks{font-size:.62rem;margin-top:-1px}
+.basebtn{min-height:26px;font-size:.74rem;padding:0 9px}
+.x{min-height:24px;height:24px}
+@media (min-width:561px){
+  .wrap{padding-block:12px 0;gap:10px}
+  .top{gap:10px}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  header h1{font-size:1.2rem}
+  header p{display:none}
+  .side{grid-auto-flow:column;align-items:center;justify-content:end}
+  .row:not(.seoulrow){grid-template-columns:minmax(0,1fr) auto auto}
+  .console{padding:10px 12px;gap:6px 14px;border-radius:12px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:"lab seoul" "inputs seoul" "steps seoul" "kst seoul"}
+  .tzlab{grid-area:lab}
+  .inputs{grid-area:inputs;display:grid;grid-template-columns:minmax(0,1fr) 5rem auto auto;gap:6px;align-items:stretch}
+  .inputs .field>.lab{display:none}
+  .inputs input[type=date],.timebtn{min-height:36px;padding:4px 8px;font-size:.9rem;width:100%;min-width:0}
+  .timebtn{justify-content:center}
+  .timebtn::after{display:none}
+  .inputs > button{min-height:36px;padding:0 12px;font-size:.88rem}
+  .quick.steps{grid-area:steps;max-width:none}
+  .quick.steps button{min-height:30px;font-size:.78rem}
+  .kst-line{grid-area:kst;font-size:.76rem;line-height:1.35}
+  #seoulBar{grid-area:seoul;align-self:stretch;display:grid}
+  .row.seoulrow{padding:8px 12px;gap:2px 10px;grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"city time" "side time" "strip strip" "ticks ticks";align-content:center}
+  .row.seoulrow .city{grid-area:city}
+  .row.seoulrow .time{grid-area:time;align-self:center}
+  .row.seoulrow .side{grid-area:side;justify-self:start}
+  .row.seoulrow .strip{grid-area:strip}
+  .row.seoulrow .ticks{grid-area:ticks}
+  .row.seoulrow .hm{font-size:1.6rem}
+  .toolbar select,.toolbar .add button{min-height:34px;padding:4px 10px;font-size:.88rem}
+  .scroller{gap:12px}
+  .list{gap:8px}
+}
+@media (max-width:560px){
+  .row{padding:8px 12px}
+  .city .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .side{gap:6px}
+}
 </style>
 </head>
 <body>
@@ -333,7 +385,7 @@ const CITIES = [
   ["Pacific/Auckland","오클랜드","뉴질랜드"],
 ];
 const BY = Object.fromEntries(CITIES.map(c=>[c[0],c]));
-const DEFAULT = ["America/New_York","America/Los_Angeles","Europe/London","Europe/Paris","Asia/Tokyo","Asia/Shanghai","Asia/Jakarta","Asia/Kolkata","Australia/Sydney"];
+const DEFAULT = ["America/Los_Angeles","America/New_York","Europe/London","Europe/Paris","Europe/Berlin","Europe/Moscow","America/Mexico_City"];
 const KEY = "kst-converter-cities";
 let selected = DEFAULT.slice();
 try{ const s = JSON.parse(localStorage.getItem(KEY)||"null"); if(Array.isArray(s)) selected = s.filter(z=>BY[z]); }catch(e){}
