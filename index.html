@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<title>서울 기준 세계시간</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one input console at top (KST), then a stacked list of city rows, each with a 24h day/night strip */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --fg:#17202e; --muted:#5d6878; --line:#dde2ea;
+  --accent:#2453c9; --accent-soft:#e6ecfb;
+  --day:#ffd88a; --eve:#f2a978; --night:#3a4a73; --work:#2453c9; --now:#e60012;
+  --good:#1d7a4f; --good-soft:#e2f3ea; --warn:#9a5b00; --warn-soft:#fbeed6; --bad:#a1323b; --bad-soft:#f8e3e5;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#171e29; --fg:#e8ecf2; --muted:#9aa5b5; --line:#2a3443;
+  --accent:#7f9fff; --accent-soft:#1e2a47;
+  --day:#c9a04e; --eve:#b86f48; --night:#2b3757; --work:#7f9fff;
+  --good:#6fd3a0; --good-soft:#163428; --warn:#f0bd62; --warn-soft:#3a2c12; --bad:#f08890; --bad-soft:#3c1c20;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#171e29; --fg:#e8ecf2; --muted:#9aa5b5; --line:#2a3443;
+  --accent:#7f9fff; --accent-soft:#1e2a47;
+  --day:#c9a04e; --eve:#b86f48; --night:#2b3757; --work:#7f9fff;
+  --good:#6fd3a0; --good-soft:#163428; --warn:#f0bd62; --warn-soft:#3a2c12; --bad:#f08890; --bad-soft:#3c1c20;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:880px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+header h1{margin:0;font-size:1.6rem;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted)}
+.console{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px}
+.console .lab{font-size:.75rem;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.inputs{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.field{display:grid;gap:4px}
+input[type=date],input[type=time],select{font:inherit;font-family:var(--f-mono);font-size:1.05rem;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);min-height:44px}
+select{font-family:var(--f-body);font-size:.95rem}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:500;border-radius:10px;min-height:44px;padding:0 14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button:hover{filter:brightness(.96)}
+.kst-line{font-family:var(--f-mono);font-size:.9rem;color:var(--muted)}
+.kst-line b{color:var(--fg);font-weight:600}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.quick button{min-height:34px;font-size:.85rem;padding:0 10px}
+.quick.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;max-width:520px}
+.quick.steps button{padding:0 4px;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.quick.steps button.minus{color:var(--bad)}
+.quick.steps button.plus{color:var(--good)}
+.quick.steps button:nth-child(3){margin-right:6px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.toolbar .add{display:flex;gap:8px;flex-wrap:wrap}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.list{display:grid;gap:10px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1.1fr) auto auto;gap:6px 16px;align-items:center}
+.row.base{border-color:var(--accent);background:var(--accent-soft)}
+.city{min-width:0}
+.city .name{font-weight:700;font-size:1.02rem}
+.city .meta{font-size:.8rem;color:var(--muted);font-family:var(--f-mono)}
+.time{text-align:right;font-variant-numeric:tabular-nums}
+.time .hm{font-family:var(--f-mono);font-size:1.6rem;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.time .date{font-size:.85rem;color:var(--muted)}
+.diff{font-family:var(--f-mono);font-size:.75rem;padding:1px 6px;border-radius:6px;margin-left:4px;background:var(--warn-soft);color:var(--warn)}
+.diff.minus{background:var(--bad-soft);color:var(--bad)}
+.side{display:grid;justify-items:end;gap:6px}
+.pill{font-size:.75rem;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.work{background:var(--good-soft);color:var(--good)}
+.pill.edge{background:var(--warn-soft);color:var(--warn)}
+.pill.night{background:var(--bad-soft);color:var(--bad)}
+.pill.dst{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)}
+.pill.off,.pill.none{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.dstbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.dstbox .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.dstbox h2{margin:0;font-size:1rem}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-height:34px;font-size:.85rem;background:var(--surface);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+.sum{display:flex;gap:8px;flex-wrap:wrap;font-size:.85rem}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.75rem;letter-spacing:.04em;color:var(--muted);font-weight:500}
+td.mono{font-family:var(--f-mono);font-size:.82rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+td small{display:block;color:var(--muted);font-family:var(--f-body)}
+.timebtn{font-family:var(--f-mono);font-size:1.05rem;background:var(--bg);min-width:120px;text-align:left;display:flex;align-items:center;gap:8px}
+.timebtn::after{content:"";width:14px;height:14px;border:2px solid var(--muted);border-radius:50%;margin-left:auto;background:linear-gradient(var(--muted),var(--muted)) 50% 25%/2px 40% no-repeat}
+.tp-back{position:fixed;inset:0;background:rgba(10,14,22,.55);display:grid;place-items:center;z-index:50;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.tp-back[hidden]{display:none!important}
+.tp{background:var(--surface);color:var(--fg);border-radius:16px;width:min(380px,100%);max-height:100%;overflow:auto;padding:18px;display:grid;gap:14px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.tp-now{font-family:var(--f-mono);font-size:2.4rem;font-weight:600;text-align:center;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tp-now .on{color:var(--accent)}
+.tp-lab{font-size:.75rem;color:var(--muted);letter-spacing:.06em}
+.tp-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.tp-grid button{min-height:40px;padding:0;font-family:var(--f-mono);font-size:.95rem}
+.tp-grid button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.tp-fine{display:flex;gap:6px;justify-content:center;align-items:center;font-size:.85rem;color:var(--muted)}
+.tp-fine button{min-height:36px;padding:0 12px}
+.tp-act{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tp-act button{min-height:48px;font-size:1rem}
+.city .name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.basebtn{min-height:30px;padding:0 10px;font-size:.78rem;font-weight:500;border-color:var(--accent);color:var(--accent);background:var(--surface);border-radius:999px}
+.row.base .basebtn{background:var(--accent);color:var(--surface)}
+.pill.basepill{background:var(--accent);color:var(--surface)}
+.tp-title{font-weight:700;font-size:1rem;text-align:center;text-wrap:balance}
+.tp-title small{display:block;font-weight:400;font-size:.8rem;color:var(--muted);font-family:var(--f-mono)}
+.tp-date{display:grid;gap:4px}
+.tp-date input{width:100%}
+.basenote{color:var(--warn)}
+.row.seoulrow{background:var(--bg);border-color:var(--line)}
+.row.seoulrow .name{font-size:1.1rem}
+.row.seoulrow .hm{font-size:2rem;color:var(--accent)}
+.row.seoulrow .date{font-size:.95rem;color:var(--fg);font-weight:500}
+/* 고정 영역(제목~범례) + 도시 목록만 스크롤 */
+.top,.scroller{display:grid;gap:20px;align-content:start}
+@media (min-height:640px){
+  html,body{height:100%}
+  body{overflow:hidden}
+  .wrap{height:100%;display:flex;flex-direction:column;gap:12px;padding-block:20px 0}
+  .top{flex:none;gap:14px}
+  .scroller{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-block:12px 40px;border-top:1px solid var(--line);margin-inline:-4px;padding-inline:4px;scrollbar-gutter:stable}
+}
+@media (max-width:560px){
+  header p{display:none}
+  header h1{font-size:1.3rem}
+  .console{padding:14px;gap:10px}
+  .quick{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .quick button{flex:none}
+  .quick.steps{overflow:visible}
+  .quick.steps button{font-size:.78rem}
+  .row.seoulrow{padding:10px 12px}
+  .row.seoulrow .hm{font-size:1.6rem}
+}
+.short{display:none}
+@media (max-width:560px){
+  .wrap{padding-block:10px 0;gap:8px}
+  .top{gap:8px}
+  header h1{font-size:1.05rem}
+  .console{padding:10px;gap:8px;border-radius:12px}
+  .tzlab,.inputs .field>.lab{display:none}
+  .inputs{display:grid;grid-template-columns:minmax(0,1fr) 4.6rem auto auto;gap:5px;align-items:stretch}
+  .inputs input[type=date],.timebtn{min-height:38px;padding:4px 6px;font-size:.86rem;width:100%;min-width:0}
+  .timebtn{justify-content:center}
+  .timebtn::after{display:none}
+  .inputs > button{min-height:38px;padding:0 10px;font-size:.88rem}
+  .long{display:none}.short{display:inline}
+  .quick.steps button{min-height:30px;font-size:.74rem}
+  .kst-line{font-size:.76rem;line-height:1.35}
+  .utc{display:none}
+  .row.seoulrow{padding:8px 10px;gap:2px 10px}
+  .row.seoulrow .meta{display:none}
+  .row.seoulrow .name{font-size:.95rem}
+  .row.seoulrow .hm{font-size:1.35rem}
+  .row.seoulrow .date{font-size:.8rem}
+  .row.seoulrow{grid-template-areas:"city time" "side time" "strip strip" "ticks ticks"}
+  .row.seoulrow .city{grid-area:city}
+  .row.seoulrow .time{grid-area:time;align-self:center}
+  .row.seoulrow .side{grid-area:side;grid-column:auto;justify-self:start}
+  .row.seoulrow .strip{grid-area:strip}
+  .row.seoulrow .ticks{grid-area:ticks}
+  .row.seoulrow .strip{margin-top:2px}
+  .row.seoulrow .ticks{font-size:.62rem}
+  .toolbar{gap:6px}
+  .toolbar .add{flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+  .toolbar select,.toolbar .add button{min-height:36px;padding:4px 10px;font-size:.88rem}
+  .legend{gap:8px;font-size:.7rem;width:100%}
+}
+.x{min-height:28px;height:28px;padding:0 8px;font-size:.8rem;color:var(--muted);background:transparent;border-color:transparent}
+.x:hover{border-color:var(--line)}
+.strip{grid-column:1/-1;position:relative;height:10px;border-radius:5px;overflow:hidden;display:flex;margin-top:4px}
+.strip span{flex:1}
+.strip{overflow:visible;padding:0}
+.strip span:first-child{border-radius:5px 0 0 5px}.strip span:nth-child(24){border-radius:0 5px 5px 0}
+.strip .mark{position:absolute;top:-5px;width:5px;height:20px;background:var(--now);border-radius:3px;transform:translateX(-2.5px);box-shadow:0 0 0 1.5px var(--surface),0 0 6px var(--now)}
+.legend i.now{width:4px;height:12px;background:var(--now);border-radius:2px}
+.ticks{grid-column:1/-1;display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:.68rem;color:var(--muted);margin-top:-2px}
+.share{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
+.share pre{margin:0;font-family:var(--f-mono);font-size:.85rem;white-space:pre-wrap;word-break:break-word;background:var(--bg);border-radius:8px;padding:12px;max-height:260px;overflow:auto}
+.share .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.share h2{margin:0;font-size:1rem}
+.note{font-size:.8rem;color:var(--muted)}
+.toast{font-size:.85rem;color:var(--good)}
+@media (max-width:560px){
+  .row{grid-template-columns:minmax(0,1fr) auto}
+  .side{grid-column:1/-1;grid-auto-flow:column;justify-content:start;align-items:center}
+  .time .hm{font-size:1.4rem}
+}
+@media (prefers-reduced-motion:no-preference){.mark{transition:left .25s ease}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+  <header>
+    <h1>서울 기준 세계시간</h1>
+    <p>한국 날짜·시간을 넣으면 각 나라의 현지 날짜·시간을 바로 계산합니다. 서머타임(DST)은 날짜별로 자동 반영됩니다. 도시 이름 옆 <b>「이 도시 기준」</b>을 누르면 그 도시의 현지 날짜·시간을 넣어 서울과 다른 도시를 거꾸로 계산할 수 있습니다.</p>
+  </header>
+
+  <section class="console" aria-label="한국 시간 입력">
+    <div class="lab tzlab">한국 표준시 (KST · UTC+09:00)</div>
+    <div class="inputs">
+      <div class="field"><label class="lab" for="d">날짜</label><input type="date" id="d"></div>
+      <div class="field"><label class="lab" for="tBtn">시간</label><input type="hidden" id="t"><button type="button" id="tBtn" class="timebtn" aria-haspopup="dialog">--:--</button></div>
+      <button class="primary" id="apply" type="button">확인</button>
+      <button id="now" type="button"><span class="long">지금 시간</span><span class="short">지금</span></button>
+    </div>
+    <div class="quick steps" aria-label="시간 조정">
+      <button type="button" class="minus" data-shift="-1440">−1일</button>
+      <button type="button" class="minus" data-shift="-60">−1시간</button>
+      <button type="button" class="minus" data-shift="-10">−10분</button>
+      <button type="button" class="plus" data-shift="10">+10분</button>
+      <button type="button" class="plus" data-shift="60">+1시간</button>
+      <button type="button" class="plus" data-shift="1440">+1일</button>
+    </div>
+    <div class="kst-line" id="kstline"></div>
+    <div id="seoulBar"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="add">
+      <label class="lab" for="pick" hidden>도시 추가</label>
+      <select id="pick" aria-label="추가할 도시"></select>
+      <button type="button" id="addBtn">도시 추가</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--work)"></i>업무 09–18</span>
+      <span><i style="background:var(--day)"></i>낮</span>
+      <span><i style="background:var(--eve)"></i>저녁</span>
+      <span><i style="background:var(--night)"></i>심야</span>
+      <span><i class="now"></i>현재</span>
+    </div>
+  </div>
+
+  </div>
+  <div class="scroller" id="scroller">
+  <section class="list" id="list" aria-live="polite"></section>
+
+  <section class="dstbox" aria-label="서머타임 현황">
+    <div class="head">
+      <h2 id="dstTitle">서머타임 현황</h2>
+      <div class="seg" role="group" aria-label="표시 범위">
+        <button type="button" id="scopeSel" aria-pressed="true">선택한 도시</button>
+        <button type="button" id="scopeAll" aria-pressed="false">전체 도시</button>
+      </div>
+    </div>
+    <div class="sum" id="dstSum"></div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>도시</th><th>입력 날짜 기준 상태</th><th>시작 (현지)</th><th>종료 (현지)</th><th>다음 시간 변경</th></tr></thead>
+        <tbody id="dstBody"></tbody>
+      </table>
+    </div>
+    <div class="note">전환 시각은 현지 시계 기준이며 '02:00→03:00'은 시계를 한 시간 앞당긴다는 뜻입니다. 남반구(호주·뉴질랜드·칠레 등)는 10월 전후에 시작해 이듬해 4월 전후에 끝납니다.</div>
+  </section>
+
+  <section class="share">
+    <div class="head">
+      <h2>공유용 텍스트</h2>
+      <div style="display:flex;gap:8px;align-items:center"><span class="toast" id="toast"></span><button type="button" id="copy">복사</button></div>
+    </div>
+    <pre id="out"></pre>
+    <div class="note">시간대 계산은 브라우저 내장 IANA 시간대 데이터(Intl API)를 사용합니다. 각국 정부가 서머타임 규칙을 바꾸면 브라우저 업데이트 시점에 따라 반영이 늦을 수 있습니다.</div>
+  </section>
+  </div>
+</div>
+
+<div class="tp-back" id="tp" hidden role="dialog" aria-modal="true" aria-label="시간 선택">
+  <div class="tp">
+    <div class="tp-title" id="tpTitle">서울 시간 선택</div>
+    <div class="tp-date" id="tpDateWrap" hidden><label class="tp-lab" for="tpDate">현지 날짜</label><input type="date" id="tpDate"></div>
+    <div class="tp-now"><span id="tpH" class="on">00</span>:<span id="tpM">00</span></div>
+    <div class="tp-lab">시 (24시간)</div>
+    <div class="tp-grid" id="tpHours"></div>
+    <div class="tp-lab">분</div>
+    <div class="tp-grid" id="tpMins"></div>
+    <div class="tp-fine"><button type="button" id="tpMinus">−1분</button><span>분 미세 조정</span><button type="button" id="tpPlus">+1분</button></div>
+    <div class="tp-act"><button type="button" id="tpCancel">취소</button><button type="button" class="primary" id="tpOk">확인</button></div>
+  </div>
+</div>
+
+<script>
+const CITIES = [
+  ["Asia/Seoul","서울","대한민국"],
+  ["Asia/Tokyo","도쿄","일본"],
+  ["Asia/Shanghai","상하이·베이징","중국"],
+  ["Asia/Hong_Kong","홍콩","홍콩"],
+  ["Asia/Taipei","타이베이","대만"],
+  ["Asia/Manila","마닐라","필리핀"],
+  ["Asia/Singapore","싱가포르","싱가포르"],
+  ["Asia/Kuala_Lumpur","쿠알라룸푸르","말레이시아"],
+  ["Asia/Jakarta","자카르타","인도네시아"],
+  ["Asia/Bangkok","방콕","태국"],
+  ["Asia/Ho_Chi_Minh","호치민·하노이","베트남"],
+  ["Asia/Kolkata","뭄바이·델리","인도"],
+  ["Asia/Dhaka","다카","방글라데시"],
+  ["Asia/Almaty","알마티","카자흐스탄"],
+  ["Asia/Ulaanbaatar","울란바토르","몽골"],
+  ["Asia/Dubai","두바이","아랍에미리트"],
+  ["Asia/Riyadh","리야드","사우디아라비아"],
+  ["Europe/Istanbul","이스탄불","튀르키예"],
+  ["Europe/Moscow","모스크바","러시아"],
+  ["Europe/London","런던","영국"],
+  ["Europe/Paris","파리","프랑스"],
+  ["Europe/Berlin","베를린","독일"],
+  ["Europe/Madrid","마드리드","스페인"],
+  ["Europe/Amsterdam","암스테르담","네덜란드"],
+  ["Europe/Rome","로마","이탈리아"],
+  ["Europe/Warsaw","바르샤바","폴란드"],
+  ["Africa/Cairo","카이로","이집트"],
+  ["Africa/Lagos","라고스","나이지리아"],
+  ["Africa/Johannesburg","요하네스버그","남아프리카공화국"],
+  ["America/New_York","뉴욕","미국 동부"],
+  ["America/Chicago","시카고","미국 중부"],
+  ["America/Denver","덴버","미국 산악"],
+  ["America/Los_Angeles","LA","미국 서부"],
+  ["Pacific/Honolulu","호놀룰루","미국 하와이"],
+  ["America/Toronto","토론토","캐나다 동부"],
+  ["America/Vancouver","밴쿠버","캐나다 서부"],
+  ["America/Mexico_City","멕시코시티","멕시코"],
+  ["America/Sao_Paulo","상파울루","브라질"],
+  ["America/Argentina/Buenos_Aires","부에노스아이레스","아르헨티나"],
+  ["America/Santiago","산티아고","칠레"],
+  ["Australia/Sydney","시드니","호주 동부"],
+  ["Australia/Perth","퍼스","호주 서부"],
+  ["Pacific/Auckland","오클랜드","뉴질랜드"],
+];
+const BY = Object.fromEntries(CITIES.map(c=>[c[0],c]));
+const DEFAULT = ["America/New_York","America/Los_Angeles","Europe/London","Europe/Paris","Asia/Tokyo","Asia/Shanghai","Asia/Jakarta","Asia/Kolkata","Australia/Sydney"];
+const KEY = "kst-converter-cities";
+let selected = DEFAULT.slice();
+try{ const s = JSON.parse(localStorage.getItem(KEY)||"null"); if(Array.isArray(s)) selected = s.filter(z=>BY[z]); }catch(e){}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(selected)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const WD = ["일","월","화","수","목","금","토"];
+const pad = n => String(n).padStart(2,"0");
+
+// 시간대 tz에서 epoch(ms)의 현지 연·월·일·시·분
+const fmtCache = {};
+function parts(epoch, tz){
+  const f = fmtCache[tz] || (fmtCache[tz] = new Intl.DateTimeFormat("en-US",{timeZone:tz,year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"numeric",hourCycle:"h23"}));
+  const o = {}; for(const p of f.formatToParts(new Date(epoch))) o[p.type]=p.value;
+  const r = {y:+o.year,mo:+o.month,d:+o.day,h:(+o.hour)%24,mi:+o.minute};
+  r.offMin = Math.round((Date.UTC(r.y,r.mo-1,r.d,r.h,r.mi) - Math.floor(epoch/60000)*60000)/60000);
+  r.wd = new Date(Date.UTC(r.y,r.mo-1,r.d)).getUTCDay();
+  return r;
+}
+function offStr(m){ const s=m<0?"−":"+"; m=Math.abs(m); return `UTC${s}${pad(Math.floor(m/60))}:${pad(m%60)}`; }
+function diffStr(m){ if(m===0) return "시차 없음"; const s=m<0?"−":"+"; m=Math.abs(m); const h=Math.floor(m/60), mm=m%60; return `서울보다 ${s}${h}시간${mm?` ${mm}분`:""}`; }
+function isDST(epoch,tz,off){
+  const y = new Date(epoch).getUTCFullYear();
+  const a = parts(Date.UTC(y,0,1,12),tz).offMin, b = parts(Date.UTC(y,6,1,12),tz).offMin;
+  return a!==b && off===Math.max(a,b);
+}
+// 해당 연도의 시간대 전환 시점(분 단위)을 자동 탐색
+const trCache = {};
+function transitions(tz, year){
+  const key = tz+"|"+year; if(trCache[key]) return trCache[key];
+  const base = Date.UTC(year,0,1), out = [];
+  let prevT = base-86400000, prevO = parts(prevT,tz).offMin;
+  for(let i=0;i<=367;i++){
+    const t = base+i*86400000, o = parts(t,tz).offMin;
+    if(o!==prevO){
+      let lo=prevT, hi=t;
+      while(hi-lo>60000){ const m=Math.floor((lo+hi)/120000)*60000; if(parts(m,tz).offMin===prevO) lo=m; else hi=m; }
+      out.push({t:hi,from:prevO,to:o});
+    }
+    prevT=t; prevO=o;
+  }
+  return trCache[key] = out.filter(x=>parts(x.t,tz).y===year);
+}
+function usesDST(tz, year){ return transitions(tz,year).length>0 || transitions(tz,year+1).length>0; }
+function nextTr(ep, tz, year){ return [...transitions(tz,year),...transitions(tz,year+1)].find(x=>x.t>ep); }
+function fmtTr(x, tz){
+  const b = parts(x.t-60000,tz), bd = new Date(Date.UTC(b.y,b.mo-1,b.d,b.h,b.mi)+60000), a = parts(x.t,tz);
+  return `${bd.getUTCMonth()+1}/${bd.getUTCDate()}(${WD[bd.getUTCDay()]}) ${pad(bd.getUTCHours())}:${pad(bd.getUTCMinutes())}→${pad(a.h)}:${pad(a.mi)}`;
+}
+function dstInfo(ep, tz, year){
+  const p = parts(ep,tz);
+  if(!usesDST(tz,year)) return {uses:false};
+  const trs = transitions(tz,year);
+  const nx = nextTr(ep,tz,year);
+  return { uses:true, active:isDST(ep,tz,p.offMin),
+    start:trs.find(x=>x.to>x.from), end:trs.find(x=>x.to<x.from), next:nx,
+    days: nx ? Math.ceil((nx.t-ep)/86400000) : null };
+}
+let dstScope = "sel";
+function renderDST(ep, year){
+  const tzs = dstScope==="sel" ? selected : CITIES.map(c=>c[0]).filter(z=>z!=="Asia/Seoul");
+  let nOn=0,nOff=0,nNone=0;
+  const rows = tzs.map(tz=>{
+    const [, name, country] = BY[tz], i = dstInfo(ep,tz,year);
+    let st, s="—", e="—", n="—";
+    if(!i.uses){ nNone++; st=`<span class="pill none">제도 없음</span>`; }
+    else{
+      i.active ? nOn++ : nOff++;
+      st = i.active ? `<span class="pill dst">적용 중</span>` : `<span class="pill off">기간 아님</span>`;
+      if(i.start) s = fmtTr(i.start,tz);
+      if(i.end) e = fmtTr(i.end,tz);
+      if(i.next){ const d=(i.next.to-i.next.from)/60; n = `${fmtTr(i.next,tz)}<small>D-${i.days} · ${i.next.to>i.next.from?"시작":"종료"} (서울과 시차 ${d>0?"1시간 줄어듦":"1시간 늘어남"})</small>`; }
+    }
+    return `<tr><td><b>${name}</b><small>${country}</small></td><td>${st}</td><td class="mono">${s}</td><td class="mono">${e}</td><td class="mono">${n}</td></tr>`;
+  });
+  $("dstBody").innerHTML = rows.join("") || `<tr><td colspan="5" class="note">선택한 도시가 없습니다.</td></tr>`;
+  $("dstTitle").textContent = `${year}년 서머타임 현황`;
+  $("dstSum").innerHTML = `<span class="pill dst">적용 중 ${nOn}</span><span class="pill off">기간 아님 ${nOff}</span><span class="pill none">제도 없음 ${nNone}</span>`;
+}
+function setScope(s){ dstScope=s; $("scopeSel").setAttribute("aria-pressed",s==="sel"); $("scopeAll").setAttribute("aria-pressed",s==="all"); render(); }
+
+function status(h){
+  if(h>=9 && h<18) return ["work","업무시간"];
+  if((h>=7 && h<9) || (h>=18 && h<22)) return ["edge", h<9?"출근 전":"퇴근 후"];
+  return ["night","심야"];
+}
+function hourColor(h){
+  if(h>=9 && h<18) return "var(--work)";
+  if(h>=6 && h<9) return "var(--day)";
+  if(h>=18 && h<22) return "var(--eve)";
+  return "var(--night)";
+}
+const STRIP = Array.from({length:24},(_,h)=>`<span style="background:${hourColor(h)};opacity:${h>=9&&h<18?1:.75}"></span>`).join("");
+
+function getEpoch(){
+  const dv = $("d").value, tv = $("t").value;
+  if(!dv || !tv) return null;
+  const [y,mo,d] = dv.split("-").map(Number), [h,mi] = tv.split(":").map(Number);
+  return Date.UTC(y,mo-1,d,h-9,mi); // KST = UTC+9, 서머타임 없음
+}
+function setFromEpoch(ep){
+  const p = parts(ep,"Asia/Seoul");
+  $("d").value = `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+  $("t").value = `${pad(p.h)}:${pad(p.mi)}`;
+  render();
+}
+
+let lastVal = "";
+function render(){
+  lastVal = $("d").value+"|"+$("t").value;
+  $("tBtn").textContent = $("t").value || "--:--";
+  const ep = getEpoch();
+  if(baseTz && ep!==baseEp){ baseTz=null; baseNote=""; }
+  const list = $("list");
+  if(ep===null){ list.innerHTML = `<div class="note">날짜와 시간을 입력하세요.</div>`; $("out").textContent=""; $("kstline").textContent=""; return; }
+  const k = parts(ep,"Asia/Seoul");
+  const kDay = Date.UTC(k.y,k.mo-1,k.d);
+  $("kstline").innerHTML = `기준: <b>${k.y}.${pad(k.mo)}.${pad(k.d)} (${WD[k.wd]}) ${pad(k.h)}:${pad(k.mi)} KST</b><span class="utc"> · ${new Date(ep).toISOString().slice(0,16).replace("T"," ")} UTC</span>`;
+  const lines = [`🇰🇷 서울 ${k.y}.${pad(k.mo)}.${pad(k.d)}(${WD[k.wd]}) ${pad(k.h)}:${pad(k.mi)} 기준`];
+  if(baseTz){
+    const bp=parts(ep,baseTz), [,bn,bc]=BY[baseTz];
+    const bs=`${bp.y}.${pad(bp.mo)}.${pad(bp.d)}(${WD[bp.wd]}) ${pad(bp.h)}:${pad(bp.mi)}`, ks=`${k.y}.${pad(k.mo)}.${pad(k.d)}(${WD[k.wd]}) ${pad(k.h)}:${pad(k.mi)}`;
+    $("kstline").innerHTML = `기준 도시: <b>${bn} 현지 ${bs}</b> → 서울 <b>${ks} KST</b>${baseNote?` · <span class="basenote">${baseNote}</span>`:""}`;
+    lines[0] = `📍 ${bn}(${bc}) 현지 ${bs} 기준\n🇰🇷 서울 ${ks}`;
+  }
+  { const [cls,label]=status(k.h), left=((k.h*60+k.mi)/1440*100).toFixed(2);
+    $("seoulBar").innerHTML = `<div class="row seoulrow" aria-label="서울 현재 시각">
+      <div class="city"><div class="name">서울</div><div class="meta">대한민국 · UTC+09:00 · 서머타임 없음</div></div>
+      <div class="time"><div class="hm">${pad(k.h)}:${pad(k.mi)}</div><div class="date">${k.y}.${pad(k.mo)}.${pad(k.d)} (${WD[k.wd]})</div></div>
+      <div class="side"><span class="pill ${cls}">${label}</span></div>
+      <div class="strip" aria-hidden="true">${STRIP}<i class="mark" style="left:${left}%"></i></div>
+      <div class="ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+    </div>`; }
+  const rows = selected.map(tz=>{
+    const [, name, country] = BY[tz];
+    const p = parts(ep,tz);
+    const dd = Math.round((Date.UTC(p.y,p.mo-1,p.d)-kDay)/86400000);
+    const dayTag = dd===0 ? "" : `<span class="diff ${dd<0?"minus":""}">${dd>0?"+":""}${dd}일</span>`;
+    const [cls,label] = status(p.h);
+    const di = dstInfo(ep,tz,k.y), dst = di.uses && di.active;
+    const dstPill = !di.uses ? "" : (di.active ? `<span class="pill dst" title="이 날짜에 서머타임 적용 중">서머타임 적용 중</span>` : `<span class="pill off">서머타임 기간 아님</span>`)
+      + (di.next && di.days<=30 ? `<span class="pill edge" title="${fmtTr(di.next,tz)}">D-${di.days} 시간 변경</span>` : "");
+    const left = ((p.h*60+p.mi)/1440*100).toFixed(2);
+    lines.push(`· ${name}(${country}) ${p.mo}/${p.d}(${WD[p.wd]}) ${pad(p.h)}:${pad(p.mi)}${dd?` [${dd>0?"+":""}${dd}일]`:""}${dst?" DST":""}`);
+    const isBase = tz===baseTz;
+    return `<article class="row${isBase?" base":""}">
+      <div class="city"><div class="name">${name}<button type="button" class="basebtn" data-base="${tz}" aria-label="${name} 현지 시간 기준으로 계산">${isBase?"기준 도시 · 다시 설정":"이 도시 기준"}</button></div><div class="meta">${country} · ${offStr(p.offMin)} · ${diffStr(p.offMin-540)}</div></div>
+      <div class="time"><div class="hm">${pad(p.h)}:${pad(p.mi)}</div><div class="date">${p.y}.${pad(p.mo)}.${pad(p.d)} (${WD[p.wd]})${dayTag}</div></div>
+      <div class="side"><span class="pill ${cls}">${label}</span>${dstPill}<button class="x" type="button" data-rm="${tz}" aria-label="${name} 삭제">삭제</button></div>
+      <div class="strip" aria-hidden="true">${STRIP}<i class="mark" style="left:${left}%"></i></div>
+      <div class="ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+    </article>`;
+  });
+  list.innerHTML = rows.length ? rows.join("") : `<div class="note">위에서 도시를 추가하세요.</div>`;
+  $("out").textContent = lines.join("\n");
+  renderDST(ep, k.y);
+  fillPicker();
+}
+function fillPicker(){
+  const opts = CITIES.filter(c=>c[0]!=="Asia/Seoul" && !selected.includes(c[0]));
+  $("pick").innerHTML = opts.map(c=>`<option value="${c[0]}">${c[1]} (${c[2]})</option>`).join("") || `<option value="">모든 도시 추가됨</option>`;
+}
+
+$("d").addEventListener("input",render);
+$("t").addEventListener("input",render);
+["d","t"].forEach(id=>{ $(id).addEventListener("change",render); $(id).addEventListener("blur",render); $(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); render(); flash(); } }); });
+function flash(){ const b=$("apply"); b.textContent="반영됨"; setTimeout(()=>b.textContent="확인",1200); }
+$("apply").addEventListener("click",()=>{ $("t").blur(); $("d").blur(); render(); flash(); });
+$("now").addEventListener("click",()=>setFromEpoch(Date.now()));
+$("scopeSel").addEventListener("click",()=>setScope("sel"));
+$("scopeAll").addEventListener("click",()=>setScope("all"));
+document.querySelectorAll(".quick button").forEach(b=>b.addEventListener("click",()=>{
+  const ep = getEpoch() ?? Date.now();
+  if(b.dataset.h){ $("t").value = `${pad(+b.dataset.h)}:00`; render(); }
+  else setFromEpoch(ep + (+b.dataset.shift)*60000);
+}));
+$("addBtn").addEventListener("click",()=>{ const v=$("pick").value; if(v && !selected.includes(v)){ selected.push(v); save(); render(); } });
+$("list").addEventListener("click",e=>{ const bz=e.target.dataset?.base; if(bz){ tpOpen(bz); return; } const tz=e.target.dataset?.rm; if(tz){ if(tz===baseTz){ baseTz=null; baseNote=""; } selected=selected.filter(z=>z!==tz); save(); render(); } });
+$("copy").addEventListener("click",()=>{
+  const txt=$("out").textContent, ok=()=>{ $("toast").textContent="복사됨"; setTimeout(()=>$("toast").textContent="",1800); };
+  const sel=()=>{ const r=document.createRange(); r.selectNodeContents($("out")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); $("toast").textContent="선택됨 · Ctrl/⌘+C로 복사"; };
+  if(navigator.clipboard?.writeText) navigator.clipboard.writeText(txt).then(ok,sel); else sel();
+});
+// 자체 시간 선택 레이어 (기기 기본 시계 팝업에 확인 버튼이 없는 문제 해결)
+let tpH=0, tpM=0;
+$("tpHours").innerHTML = Array.from({length:24},(_,h)=>`<button type="button" data-h="${h}">${pad(h)}</button>`).join("");
+$("tpMins").innerHTML = Array.from({length:12},(_,i)=>`<button type="button" data-m="${i*5}">${pad(i*5)}</button>`).join("");
+function tpPaint(){
+  $("tpH").textContent=pad(tpH); $("tpM").textContent=pad(tpM);
+  document.querySelectorAll("#tpHours button").forEach(b=>b.setAttribute("aria-pressed", +b.dataset.h===tpH));
+  document.querySelectorAll("#tpMins button").forEach(b=>b.setAttribute("aria-pressed", +b.dataset.m===tpM));
+}
+let tpMode=null, opener=null;
+function tpOpen(tz){
+  tpMode = tz || null; opener = document.activeElement;
+  if(tpMode){
+    const [,n,c]=BY[tz], ep=getEpoch() ?? Date.now(), p=parts(ep,tz);
+    $("tpTitle").innerHTML = `${n} 현지 시간으로 계산<small>${c} · ${offStr(p.offMin)}</small>`;
+    $("tpDate").value = `${p.y}-${pad(p.mo)}-${pad(p.d)}`; tpH=p.h; tpM=p.mi; $("tpDateWrap").hidden=false;
+  } else {
+    const [h,m]=($("t").value||"00:00").split(":").map(Number); tpH=h; tpM=m;
+    $("tpTitle").innerHTML = `서울 시간 선택<small>KST · UTC+09:00</small>`; $("tpDateWrap").hidden=true;
+  }
+  tpPaint(); $("tp").hidden=false; $("tpOk").focus();
+}
+// 현지 날짜·시간(tz) → 절대 시각. 서머타임 경계도 반복 보정
+function localToEpoch(y,mo,d,h,mi,tz){
+  const U=Date.UTC(y,mo-1,d,h,mi), before=parts(U-86400000,tz).offMin, after=parts(U+86400000,tz).offMin;
+  for(const off of [before,after]){ const ep=U-off*60000, q=parts(ep,tz); if(q.h===h && q.mi===mi && q.d===d) return ep; }
+  return U-before*60000; // 서머타임 시작으로 건너뛴 시각: 앞으로 밀어서 맞춤 (예: 02:30 → 03:30)
+}
+let baseTz=null, baseEp=null, baseNote="";
+function tpClose(){ $("tp").hidden=true; (opener&&document.contains(opener)?opener:$("tBtn")).focus(); }
+$("tBtn").addEventListener("click",()=>tpOpen(null));
+$("tpHours").addEventListener("click",e=>{ if(e.target.dataset.h){ tpH=+e.target.dataset.h; tpPaint(); } });
+$("tpMins").addEventListener("click",e=>{ if(e.target.dataset.m){ tpM=+e.target.dataset.m; tpPaint(); } });
+$("tpMinus").addEventListener("click",()=>{ tpM=(tpM+59)%60; tpPaint(); });
+$("tpPlus").addEventListener("click",()=>{ tpM=(tpM+1)%60; tpPaint(); });
+$("tpCancel").addEventListener("click",tpClose);
+$("tpOk").addEventListener("click",()=>{
+  if(!tpMode){ $("t").value=`${pad(tpH)}:${pad(tpM)}`; render(); tpClose(); flash(); return; }
+  const dv=$("tpDate").value; if(!dv){ $("tpDate").focus(); return; }
+  const [y,mo,d]=dv.split("-").map(Number), tz=tpMode, ep=localToEpoch(y,mo,d,tpH,tpM,tz), p=parts(ep,tz);
+  baseNote = (p.h!==tpH || p.mi!==tpM) ? `${pad(tpH)}:${pad(tpM)}은 서머타임 시작으로 현지에 없는 시각이라 ${pad(p.h)}:${pad(p.mi)} 기준으로 맞췄습니다` : "";
+  baseTz=tz; baseEp=ep; tpMode=null;
+  $("tp").hidden=true; setFromEpoch(ep); flash();
+  const row=document.querySelector(`[data-base="${tz}"]`); if(row) row.focus();
+});
+$("tp").addEventListener("click",e=>{ if(e.target.id==="tp") tpClose(); });
+document.addEventListener("keydown",e=>{ if(!$("tp").hidden && e.key==="Escape") tpClose(); });
+
+// 상단 고정 영역에서 마우스 휠·터치·키보드로 스크롤해도 도시 목록이 스크롤되도록 전달
+(()=>{
+  const sc=$("scroller"), top=document.querySelector(".top");
+  const fixed=()=>getComputedStyle(sc).overflowY==="auto";
+  top.addEventListener("wheel",e=>{
+    if(!fixed() || e.ctrlKey || Math.abs(e.deltaX)>Math.abs(e.deltaY)) return;
+    const k = e.deltaMode===1 ? 16 : e.deltaMode===2 ? sc.clientHeight : 1;
+    sc.scrollTop += e.deltaY*k; e.preventDefault();
+  },{passive:false});
+  let ty=null, tx=null, dir=null;
+  top.addEventListener("touchstart",e=>{ if(e.touches.length===1){ ty=e.touches[0].clientY; tx=e.touches[0].clientX; dir=null; } },{passive:true});
+  top.addEventListener("touchmove",e=>{
+    if(ty===null || !fixed() || e.touches.length!==1) return;
+    const y=e.touches[0].clientY, x=e.touches[0].clientX;
+    if(!dir){ if(Math.abs(y-ty)<6 && Math.abs(x-tx)<6) return; dir = Math.abs(y-ty)>Math.abs(x-tx) ? "v" : "h"; }
+    if(dir!=="v") return; // 가로 밀기(빠른 설정 버튼)는 그대로
+    sc.scrollTop += ty-y; ty=y; tx=x; e.preventDefault();
+  },{passive:false});
+  top.addEventListener("touchend",()=>{ ty=null; });
+  document.addEventListener("keydown",e=>{
+    if(!fixed() || !$("tp").hidden) return;
+    const a=document.activeElement; if(a && a!==document.body && a.closest("#scroller")) return;
+    if(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;
+    const h=sc.clientHeight*0.85, m={PageDown:h,PageUp:-h,ArrowDown:40,ArrowUp:-40,Home:-1e9,End:1e9};
+    let d=m[e.key]; if(e.key===" " && (a===document.body||!a)) d=e.shiftKey?-h:h;
+    if(d===undefined) return; sc.scrollBy({top:d}); e.preventDefault();
+  });
+})();
+
+setFromEpoch(Date.now());
+// 시계 팝업(네이티브 피커)에서 '확인'을 눌러 값만 바뀌고 이벤트가 오지 않는 기기 대응: 값 변화를 직접 감지
+setInterval(()=>{ if($("d").value+"|"+$("t").value !== lastVal) render(); }, 200);
+window.addEventListener("focus", render);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) render(); });
+</script>
+
+</body>
+</html>
